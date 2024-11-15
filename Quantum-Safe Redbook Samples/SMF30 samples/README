@@ -1,0 +1,14 @@
+Sample SMF30 crypto counters processing tool
+This sample tool has 2  components:
+•	SMF30CEX: A JCL to run the Rexx program and provide the files required for its execution.
+•	SMF30CRY: A Rexx program, processing SMF30 records and extracting the crypto counters.
+The Rexx program will dynamically parse the SYS1.MACLIB IFASMFCN and extract the label for each reported crypto instruction id.
+The JCL will require the following customization:
+1.	Replace hlq.report.csv with the name of the output dataset to contain the extracted SMF30 crypto counters fields in CSV format.
+2.	Replace hlq.smfdata.input with the name of the input dataset containing SMF30 records.
+3.	The MACLIB DD should be updated, if required, to provide the location of the IFASMFCN macro in SYS1.MACLIB.
+4.	The SYSEXEC DD should  be updated to provide the location of the library where the SMF30CRY rexx program has been uploaded.
+
+
+
+
