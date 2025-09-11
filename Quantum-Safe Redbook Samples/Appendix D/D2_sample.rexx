@@ -1,111 +1,124 @@
 /* rexx */
 
-/*------------------------------------------------------------------*/
-/* CRYSTALS-Dilithium Digital signature generation and verification */
-/*------------------------------------------------------------------*/
+/*-------------------------------------------------------------------*/
+/* Pre-hash ML-DSA Digital signature generation and verification     */
+/*-------------------------------------------------------------------*/
+/* expected results */
+ExpRc = '00000000'x ;
+ExpRs = '00000000'x ;
 
- /* expected results */
- ExpRC = '00000000'x ;
- ExpRS = '00000000'x ;
+/* Message to Sign */
+message =  'A9993E364706816ABA3E25717850C26C9CD0D89D'X ||,
+           'A9993E364706816ABA3E25717850C26C9CD0D89D'X ||,
+           'A9993E364706816ABA3E25717850C26C9CD0D89D'X;
 
-/*------------------------------------------------------------------*/
-/* Call the CSFPPKS service passing the CRYSTALS-Dilithium private  */
-/* key handle to generate the digital signature.                    */
-/*------------------------------------------------------------------*/
- PKS_Rule_Array          = 'LI2     '
- PKS_Key_Handle          = 'QSAFE.TEST.TOKEN                00000003Y'
- PKS_Cipher_Value        = Copies('A',128)
- PKS_Cipher_Value_Length = D2C( Length(PKS_Cipher_Value),4 );
- PKS_Clear_Value_length  = D2C(4596,4);
- PKS_Clear_Value         = Copies('00'x, C2D(PKS_Clear_Value_length) )
+/*-------------------------------------------------------------------*/
+/* Call the CSNDDSG service passing the Pre-hash ML-DSA private key. */
+/* With a Crypto Express8S CCA Coprocessor, the message to be        */
+/* signed can be up to 15000 bytes.                                  */
+/*-------------------------------------------------------------------*/
+/* Message to is to be hashed with SHA-512 and then signed */
+DSG_Rule_Array = 'CRDL-DSA' ||,
+                 'MESSAGE ' ||,
+                 'SHA-512 ' 
 
- Call CSFPPKS
+/* Message has already been hashed and is a SHA-512 digest */
+/*
+  DSG_Rule_Array = 'CRDL-DSA' ||,
+                   'HASH    ' ||,
+                   'SHA-512 ' 
+*/
 
-/*------------------------------------------------------------------*/
-/* Call the CSFPPKV service passing the CRYSTALS-Dilithium public   */
-/* key handle to verify the digital signature.                      */
-/*------------------------------------------------------------------*/
- PKV_Key_Handle          = 'QSAFE.TEST.TOKEN                00000002Y'
+/* Pre-hash ('07'x) ML-DSA private key label  */
+DSG_priv_key = left('MLDSA87.PREHASH.PRV.0001',64)
 
- Call CSFPPKV
+DSG_data = message 
 
- exit
+call CSNDDSG
+
+/*-------------------------------------------------------------------*/
+/* Call the CSNDDSG service passing the Pre-hash ML-DSA public key.  */
+/*-------------------------------------------------------------------*/
+DSV_Data = DSG_data
+DSV_Sig_Field = DSG_sig_field
+DSV_Rule_Array = DSG_Rule_Array
+
+/* Pre-hash ('07'x) ML-DSA public key label  */
+DSV_pub_key = left('MLDSA87.PREHASH.PUB.0001',64)
+
+call CSNDDSV
+
+exit
 /* --------------------------------------------------------------- */
-/* PKCS #11 Private Key Sign                                       */
+/* Digital Signature Generate                                      */
 /*                                                                 */
-/* Used to sign data using an ECC, RSA, DSA, or CRYSTALS-Dilithium */
-/* private key.                                                    */
+/* Use the Digital Signature Generate callable service to generate */
+/* a digital signature using a PKA private key.                    */
+/*                                                                 */
+/* See the ICSF Application Programmer's Guide for more details.   */
 /* --------------------------------------------------------------- */
-CSFPPKS:
+CSNDDSG:
 
- PKS_RC              = 'FFFFFFFF'x ;
- PKS_RS              = 'FFFFFFFF'x ;
- PKS_Exit_Length     = '00000000'x ;
- PKS_Exit_Data       = '' ;
+DSG_rc                 = 'FFFFFFFF'x ;
+DSG_rs                 = 'FFFFFFFF'x ;
+DSG_Exit_Length        = '00000000'x ;
+DSG_Exit_Data          = '' ;
+DSG_Data_length        = D2C( Length(DSG_Data),4 );
+DSG_Sig_Field_Length   = '00001388'x ;
+DSG_Sig_Bit_Length     = '00000000'x ;
+DSG_Sig_Field          = copies('00'x,c2d(DSG_Sig_field_length))
+DSG_rule_count         = d2c( length(DSG_rule_array)/8,4 )
+DSG_priv_key_length    = d2c( length(DSG_priv_key),4 )
 
- PKS_Rule_Count = d2c( length(PKS_Rule_Array)/8,4 )
+address linkpgm 'CSNDDSG' ,
+                'DSG_rc' 'DSG_rs' ,
+                'DSG_Exit_Length' 'DSG_Exit_Data' ,
+                'DSG_Rule_Count' 'DSG_Rule_Array' ,
+                'DSG_priv_key_length' 'DSG_priv_key' ,
+                'DSG_data_length' 'DSG_data' ,
+                'DSG_sig_field_length' ,
+                'DSG_sig_bit_length' ,
+                'DSG_sig_field' ;
 
+DSG_sig_field = substr(DSG_sig_field,1,c2d(DSG_sig_field_length))
 
- address linkpgm 'CSFPPKS'                 ,
-                 'PKS_rc'                  ,
-                 'PKS_rs'                  ,
-                 'PKS_Exit_Length'         ,
-                 'PKS_Exit_Data'           ,
-                 'PKS_Rule_Count'          ,
-                 'PKS_Rule_Array'          ,
-                 'PKS_Cipher_Value_Length' ,
-                 'PKS_Cipher_Value'        ,
-                 'PKS_Key_Handle'          ,
-                 'PKS_Clear_Value_Length'  ,
-                 'PKS_Clear_Value'         ;
+if (DSG_rc \= ExpRc | DSG_rs \= ExpRs) then
+  say 'DSG: failed: rc =' c2x(DSG_rc) 'rs =' c2x(DSG_rs)
+else
+  say 'DSG successful : rc =' c2x(DSG_rc) 'rs =' c2x(DSG_rs) ;
 
- PKS_Clear_value = ,
-    substr(PKS_clear_value,1,c2d(PKS_Clear_value_length))
-
- if (PKS_RC \= ExpRC | PKS_RS \= ExpRS) Then
-    say 'PKS Failed : rc =' c2x(PKS_RC) 'rs =' c2x(PKS_RS) ;
- else
-    say 'PKS Successful : rc =' c2x(PKS_RC) 'rs =' c2x(PKS_RS) ;
 return;
 /* --------------------------------------------------------------- */
-/* PKCS #11 Public Key Verify                                      */
+/* Digital Signature Verify                                        */
 /*                                                                 */
-/* Used to verify a signature using an ECC, RSA, DSA, or           */
-/* CRYSTALS-Dilithium public key.                                  */
+/* Use the Digital Signature Verify callable service to verify a   */
+/* digital signature using a PKA public key.                       */
+/*                                                                 */
+/* See the ICSF Application Programmer's Guide for more details.   */
 /* --------------------------------------------------------------- */
-CSFPPKV:
+CSNDDSV:
 
- PKV_RC              = 'FFFFFFFF'x ;
- PKV_RS              = 'FFFFFFFF'x ;
- PKV_Exit_Length     = '00000000'x ;
- PKV_Exit_Data       = '';
- PKV_Cipher_Value_length = PKS_Cipher_Value_length
- PKV_Cipher_Value        = PKS_Cipher_Value
- PKV_Clear_Value         = PKS_Clear_Value
- PKV_Clear_Value_length  = PKS_Clear_Value_length
- PKV_Rule_Array          = PKS_Rule_Array
- PKV_Rule_Count      = d2c( length(PKV_rule_Array)/8,4 )
+DSV_rc               = 'FFFFFFFF'x ;
+DSV_rs               = 'FFFFFFFF'x ;
+DSV_Exit_Length      = '00000000'x ;
+DSV_Exit_Data        = '' ;
+DSV_Data_length      = D2C( Length(DSV_Data),4 );
+DSV_Sig_Field_Length = d2c( length(DSV_sig_field),4 )
+DSV_rule_count       = d2c( length(DSV_rule_array)/8,4 )
+DSV_pub_key_length   = d2c( length(DSV_pub_key),4 )
 
+address linkpgm 'CSNDDSV' ,
+                'DSV_rc' 'DSV_rs' ,
+                'DSV_Exit_Length' 'DSV_Exit_Data' ,
+                'DSV_Rule_Count' 'DSV_Rule_Array' ,
+                'DSV_pub_key_length' 'DSV_pub_key' ,
+                'DSV_data_length' 'DSV_data' ,
+                'DSV_sig_field_length' ,
+                'DSV_sig_field' ;
 
- address linkpgm 'CSFPPKV'             ,
-                 'PKV_RC'              ,
-                 'PKV_RS'              ,
-                 'PKV_Exit_Length'     ,
-                 'PKV_Exit_Data'       ,
-                 'PKV_Rule_Count'      ,
-                 'PKV_Rule_Array'      ,
-                 'PKV_Clear_Value_Length' ,
-                 'PKV_Clear_Value'      ,
-                 'PKV_Key_Handle'       ,
-                 'PKV_Cipher_Value_length' ,
-                 'PKV_Cipher_Value'     ;
+if DSV_rc \= ExpRc | DSV_rs \= ExpRs then
+  say 'DSV failed: rc =' c2x(DSV_rc) 'rs =' c2x(DSV_rs)
+else
+  say 'DSV successful : rc =' c2x(DSV_rc) 'rs =' c2x(DSV_rs) ;
 
- PKV_Cipher_value = ,
-    substr(pkv_cipher_value,1,c2d(PKV_Cipher_value_length))
-
- if (PKV_RC \= ExpRC | PKV_RS \= ExpRS) Then
-   say 'PKV Failed : rc =' c2x(PKV_RC) 'rs =' c2x(PKV_RS) ;
- else
-   say 'PKV successful : rc =' c2x(PKV_RC) 'rs =' c2x(PKV_RS) ;
-
-return; 
+return;

@@ -1,37 +1,41 @@
 /* rexx */
 
 /*-------------------------------------------------------------------*/
-/* CRYSTALS-Dilithium Digital signature generation and verification  */
+/* Pure ML-DSA Digital signature generation and verification         */
 /*-------------------------------------------------------------------*/
 /* expected results */
 ExpRc = '00000000'x ;
 ExpRs = '00000000'x ;
 
+/* Message to Sign */
+message =  'A9993E364706816ABA3E25717850C26C9CD0D89D'X ||,
+           'A9993E364706816ABA3E25717850C26C9CD0D89D'X ||,
+           'A9993E364706816ABA3E25717850C26C9CD0D89D'X;
+
 /*-------------------------------------------------------------------*/
-/* Call the CSNDDSG service passing the CRYSTALS-Dilithium private   */
-/* key. With a Crypto Express8S CCA Coprocessor, the message to be   */
+/* Call the CSNDDSG service passing the Pure ML-DSA private key.     */
+/* With a Crypto Express8S CCA Coprocessor, the message to be        */
 /* signed can be up to 15000 bytes.                                  */
 /*-------------------------------------------------------------------*/
 DSG_Rule_Array = 'CRDL-DSA' ||,
                  'MESSAGE ' ||,
                  'CRDLHASH'
 
-/* CRYSTALS-Dilithium 87 Round 3 Private key */
-DSG_priv_key = left('LI287R3.PRV.0001',64)
-DSG_data = copies('G',15000) /* Message to Sign */
+/* Pure ('05'x) ML-DSA private key label  */
+DSG_priv_key = left('MLDSA87.PURE.PRV.0001',64)
+DSG_data = message 
 
 call CSNDDSG
 
 /*-------------------------------------------------------------------*/
-/* Call the CSNDDSG service passing the CRYSTALS-Dilithium public    */
-/* key.                                                              */
+/* Call the CSNDDSG service passing the Pure ML-DSA public key.      */
 /*-------------------------------------------------------------------*/
 DSV_Data = DSG_data
 DSV_Sig_Field = DSG_sig_field
 DSV_Rule_Array = DSG_Rule_Array
 
-/* CRYSTALS-Dilithium 87 Round 3 Public key */
-DSV_pub_key = left('LI287R3.PUB.0002',64)
+/* Pure ('05'x) ML-DSA public key label  */
+DSV_pub_key = left('MLDSA87.PURE.PUB.0001',64)
 
 call CSNDDSV
 
@@ -56,7 +60,6 @@ DSG_Sig_Bit_Length     = '00000000'x ;
 DSG_Sig_Field          = copies('00'x,c2d(DSG_Sig_field_length))
 DSG_rule_count         = d2c( length(DSG_rule_array)/8,4 )
 DSG_priv_key_length    = d2c( length(DSG_priv_key),4 )
-
 
 address linkpgm 'CSNDDSG' ,
                 'DSG_rc' 'DSG_rs' ,
@@ -109,4 +112,4 @@ if DSV_rc \= ExpRc | DSV_rs \= ExpRs then
 else
   say 'DSV successful : rc =' c2x(DSV_rc) 'rs =' c2x(DSV_rs) ;
 
-return; 
+return;
