@@ -21,7 +21,6 @@ exit_data = ''
 private_name    = ''
 user_assoc_data = ''
 
-
 /* PKE parameters */
 PKE_rule_array = 'ZERO-PAD'
 PKE_keyvalue       = ''
@@ -34,13 +33,13 @@ kek_identifier = ''
 /* Create ALICE's keys */
 /*---------------------*/
 
-Say "Generating Alice's Kyber key pair..."
+Say "Generating Alice's ML-KEM key pair..."
 
 /*-----------------------------------------------------------*/
-/* Build Kyber skeleton token with U-DATENC key usage flag   */
+/* Build ML-KEM skeleton token with U-DATENC key usage flag  */
 /*-----------------------------------------------------------*/
 PKB_rule_array = 'QSA-PAIR'||'U-DATENC'
-kvs            = '02'x ||,   /* algorithm identifier      */
+kvs            = '06'x ||,   /* algorithm identifier      */
                  '00'x ||,   /* clear key format skeleton */
                  '1024'x ||, /* algorithm parameter       */
                  '0000'x ||, /* clear key length          */
@@ -48,20 +47,20 @@ kvs            = '02'x ||,   /* algorithm identifier      */
 CALL CSNDPKB
 
 /*-----------------------------------------------------------*/
-/* Generate Kyber key pair using built skeleton token        */
+/* Generate ML-KEM key pair using built skeleton token       */
 /*-----------------------------------------------------------*/
 PKG_rule_array = 'master  '
 CALL CSNDPKG
 
-ALICE_Kyber_pvt = PKG_token
+ALICE_MLKEM_pvt = PKG_token
 
 /*-----------------------------------------------------------*/
-/* Extract Kyber public key from Kyber private key token     */
+/* Extract ML-KEM public key from ML-KEM private key token   */
 /*-----------------------------------------------------------*/
 PKX_source_key  = PKG_token
 CALL CSNDPKX
 
-ALICE_Kyber_publ = PKX_token
+ALICE_MLKEM_publ = PKX_token
 
 /*-----------------------------------------------------------*/
 /* Build ECC skeleton token with KEY-MGMT key usage flag     */
@@ -90,7 +89,6 @@ PKX_source_key     = PKG_token
 CALL CSNDPKX
 
 ALICE_ECC_publ = PKX_token
-
 
 /*-------------------*/
 /* Create BOB's keys */
@@ -128,17 +126,17 @@ BOB_ECC_publ   = PKG_token
 /*-----------------------------------------------------------*/
 /* BOB creates the shared-key derivation input               */
 /*-----------------------------------------------------------*/
-PKE_rule_array = 'ZERO-PAD'||'RANDOM  '
+PKE_rule_array = 'ZERO-PAD'||'RANDOM  ' || 'AES-ENC '
 PKE_keyvalue       = '01010101010101010202020202020202'x||,
-                 '00000000000000000000000000000000'x
+                     '00000000000000000000000000000000'x
 sym_key_identifier = BOB_AES_CIPHER_key_token
-public_key_identifier = ALICE_KYBER_publ
+public_key_identifier = ALICE_MLKEM_publ
 CALL CSNDPKE
 
 /*-----------------------------------------------------------*/
 /* BOB completes the shared-key derivation                   */
 /*-----------------------------------------------------------*/
-KYBER_enciphered_PKE_keyvalue = enciphered_PKE_keyvalue
+MLKEM_enciphered_PKE_keyvalue = enciphered_PKE_keyvalue
 sym_enciphered_PKE_keyvalue   = PKE_keyvalue
 
 EDH_rule_array = 'DERIV01 '||'KEY-AES '||'QSA-ECDH'||'IHKEYAES'
@@ -169,11 +167,11 @@ EDH_rule_array = 'DERIV01 '||'KEY-AES '||'QSA-ECDH'||'IHKEYKYB'
 private_key_identifier = ALICE_ECC_pvt
 private_kek_identifier = ''
 public_key_identifier  = BOB_ECC_publ
-hybrid_key_identifier  = ALICE_Kyber_pvt
+hybrid_key_identifier  = ALICE_MLKEM_pvt
 party_identifier       = 'Party#Identifier'
 key_bit_length         = d2c(192,4)
 initialization_vector  = ''
-hybrid_ciphertext      = KYBER_enciphered_PKE_keyvalue
+hybrid_ciphertext      = MLKEM_enciphered_PKE_keyvalue
 output_kek_identifier  = ''
 output_key_identifier  = AES_CIPHER_skeleton
 CALL CSNDEDH
@@ -279,7 +277,6 @@ ELSE
 SAY
 RETURN
 
-
 /*------------------------------------------------------------------*/
 /* PKA Public Key Extract                                           */
 /*                                                                  */
@@ -343,7 +340,10 @@ public_key_identifier_length = d2c(length(public_key_identifier),4)
 enciphered_PKE_keyvalue_length = d2c(1568,4)
 enciphered_PKE_keyvalue = d2c(0,1568)
 
-
+say 'enciphered_PKE_keyvalue_length' c2x(enciphered_PKE_keyvalue_length)
+say 'public_key_identifier_length' c2x(public_key_identifier_length)
+say 'sym_key_identifier_length' c2x(sym_key_identifier_length)
+say 'PKE_keyvalue_length' c2x(PKE_keyvalue_length)
 
 ADDRESS LINKPGM 'CSNDPKE' ,
                 'PKE_rc' ,
@@ -500,5 +500,4 @@ AES_CIPHER_SKELETON = ,
 '0100003805000000000000000000000000000000000000000000020200000100'x||,
 '001A0000000000000002000102C000000003E00000000000'x
 
-
-RETURN 
+RETURN

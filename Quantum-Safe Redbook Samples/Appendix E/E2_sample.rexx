@@ -1,501 +1,150 @@
-/* REXX */
+/* rexx */
 
-/*********************************************************************/
-/* PKCS #11 Hybrid Quantum-safe Key Exchange Scheme                  */
-/*********************************************************************/
-SIGNAL ON NOVALUE;
+/*-------------------------------------------------------------------*/
+/* CCA ML-KEM key encapsulation                                      */
+/*-------------------------------------------------------------------*/
+Exp_rc = '00000000'x
+Exp_rs = '00000000'x
 
-Call TCSETUP
+/* symmetric key skeletons                                           */
+AES_CIPHER_SKELETON = ,
+'0100003805000000000000000000000000000000000000000000020200000100'x||,
+'001A0000000000000002000102C000000003E00000000000'x
 
-/*********************************************************************/
-/* Common test data                                                  */
-/*********************************************************************/
-/* expected results */
-ExpRC = '00000000'x ;
-ExpRS = '00000000'x ;
+/* Randomly generate and encrypt a 32b value and return it in an
+   encrypted CCA AES key token                                       */
+PKE_rule_array = 'ZERO-PAD' ||,
+                 'RANDOM  ' ||,
+                 'AES-KB  '
 
-exit_data_length     = '00000000'X;
-exit_data            = '';
-GKP_EC_pub_attr_list =,
-    '0006'X ||,
-    CKA_CLASS              || '0004'X || CKO_PUBLIC_KEY            ||,
-    CKA_KEY_TYPE           || '0004'X || CKK_EC                    ||,
-    CKA_TOKEN              || '0001'X || CK_TRUE                   ||,
-    CKA_IBM_SECURE         || '0001'X || CK_TRUE                   ||,
-    CKA_EC_PARAMS          || D2C(LENGTH(secp521r1),2) ||,
-                                         secp521r1                 ||,
-    CKA_LABEL            /*|| 'llll'X || 'label'                  */ ;
-GKP_EC_prv_attr_list =,
-    '0005'X ||,
-    CKA_CLASS              || '0004'X || CKO_PRIVATE_KEY           ||,
-    CKA_KEY_TYPE           || '0004'X || CKK_EC                    ||,
-    CKA_TOKEN              || '0001'X || CK_TRUE                   ||,
-    CKA_IBM_SECURE         || '0001'X || CK_TRUE                   ||,
-    CKA_LABEL            /*|| 'llll'X || 'label'                  */ ;
-GKP_Kyber_pub_attr_list =,
-    '0006'X ||,
-    CKA_CLASS              || '0004'X || CKO_PUBLIC_KEY            ||,
-    CKA_KEY_TYPE           || '0004'X || CKK_IBM_KYBER             ||,
-    CKA_TOKEN              || '0001'X || CK_TRUE                   ||,
-    CKA_IBM_SECURE         || '0001'X || CK_TRUE                   ||,
-    CKA_IBM_KYBER_MODE     || D2C(LENGTH(DER_OID_KYBER_1024_R2),2) ||,
-                                         DER_OID_KYBER_1024_R2     ||,
-    CKA_LABEL            /*|| 'llll'X || 'label'                  */ ;
-GKP_Kyber_prv_attr_list =,
-    '0005'X ||,
-    CKA_CLASS              || '0004'X || CKO_PRIVATE_KEY           ||,
-    CKA_KEY_TYPE           || '0004'X || CKK_IBM_KYBER             ||,
-    CKA_TOKEN              || '0001'X || CK_TRUE                   ||,
-    CKA_IBM_SECURE         || '0001'X || CK_TRUE                   ||,
-    CKA_LABEL            /*|| 'llll'X || 'label'                  */ ;
-DVK_attr_list_ECDH =,
-    '0004'X ||,
-    CKA_CLASS              || '0004'X || CKO_SECRET_KEY            ||,
-    CKA_IBM_SECURE         || '0001'X || CK_TRUE                   ||,
-    CKA_KEY_TYPE           || '0004'X || CKK_GENERIC_SECRET        ||,
-    CKA_VALUE_LEN          || '0004'X || '00000042'X               ;
-DVK_attr_list_Kyber =,
-    '0004'X ||,
-    CKA_CLASS              || '0004'X || CKO_SECRET_KEY            ||,
-    CKA_IBM_SECURE         || '0001'X || CK_TRUE                   ||,
-    CKA_KEY_TYPE           || '0004'X || CKK_AES                   ||,
-    CKA_VALUE_LEN          || '0004'X || '00000020'X               ;
-known_clear_text = COPIES('A',16);
+/* AES 16b Initialization Vector (IV) left justified in the buffer   */
+PKE_keyvalue       = left('01010101010101010202020202020202'x||,
+                          '00000000000000000000000000000000'x,256)
 
-my_token = Left('QSAFE.TEST.TOKEN',44) /* Replace this token handle */
+/* AES CIPHER key skeleton used to contain the generated key         */
+PKE_sym_key_identifier = AES_CIPHER_SKELETON
 
+/* ML-KEM Public key label                                           */
+PKE_public_key_identifier = left('MLKEM.1024.PUB.0001',64)
 
-/*********************************************************************/
-/* Step 1.1 Generate an ECC key pair for Alice                       */
-/*********************************************************************/
-testN = 'ECALICE';
-pub_key_attr_list = GKP_EC_pub_attr_list||D2C(LENGTH(testN),2)||testN;
-prv_key_attr_list = GKP_EC_prv_attr_list||D2C(LENGTH(testN),2)||testN;
-CALL CSFPGKP;
-handle_EC_Pub_A  = pub_key_object_handle;
-handle_EC_Priv_A = prv_key_object_handle;
+call CSNDPKE
 
-/*********************************************************************/
-/* Step 2.2 Generate an ECC key pair for Bob                         */
-/*********************************************************************/
-testN = 'ECBOB';
-pub_key_attr_list = GKP_EC_pub_attr_list||D2C(LENGTH(testN),2)||testN;
-prv_key_attr_list = GKP_EC_prv_attr_list||D2C(LENGTH(testN),2)||testN;
-CALL CSFPGKP;
-handle_EC_Pub_B  = pub_key_object_handle;
-handle_EC_Priv_B = prv_key_object_handle;
+say 'PKE_keyvalue' c2x(PKE_keyvalue)
 
-/*********************************************************************/
-/* Step 2.2 Generate a Kyber key pair for Bob                        */
-/*********************************************************************/
-testN = 'QSBOB';
-pub_key_attr_list=GKP_Kyber_pub_attr_list||D2C(LENGTH(testN),2)||testN;
-prv_key_attr_list=GKP_Kyber_prv_attr_list||D2C(LENGTH(testN),2)||testN;
-CALL CSFPGKP;
-handle_Kyb_Pub_B  = pub_key_object_handle;
-handle_Kyb_Priv_B = prv_key_object_handle;
+/* Return the 32b value in a CCA AES key token                       */
+PKD_Rule_Array = 'ZERO-PAD' ||,
+                 'AES-KB  '
 
+/* ML-KEM Private key label */
+PKD_KeyIdentifier = left('MLKEM.1024.PRV.0001',64)
 
-/*********************************************************************/
-/* Step 2.3 Derive a key using ECDH(HYBRID_NULL) with Bob's Private  */
-/* ECC key and Alice Public ECC key                                  */
-/*********************************************************************/
-testN = 'DRVGENSECB';
-pub_EC_POINT = CSFPGAV(handle_EC_Pub_A,CKA_EC_POINT);
-rule_array                = 'EC-DH   ';
-attribute_list            = DVK_attr_list_ECDH;
-base_key_handle           = handle_EC_Priv_B;
-DVK_ParmsList                =,
-       CKD_IBM_HYBRID_NULL          ||, /* KDF function code      */
-       '00000000'X                  ||, /* Optional data length   */
-       '0000000000000000'X          ||, /* Optional data address  */
-       D2C(LENGTH(pub_EC_POINT),4)  ||, /* Public value length    */
-       pub_EC_POINT;                    /* Public value           */
-CALL CSFPDVK;
+/* ML-KEM Encrypted value from PKE                                   */
+PKD_EncKeyValue_length     = PKE_EncKeyvalue_length
+PKD_EncKeyValue            = PKE_EncKeyvalue
 
-handle_GenSec_B = target_key_handle;
+/* AES CIPHER key skeleton used to contain the decrypted key         */
+PKD_sym_key_identifier     = AES_CIPHER_SKELETON ;
 
+call CSNDPKD
 
-/*********************************************************************/
-/* Step 3.3 Derive a key using ECDH(HYBRID_NULL) with Alice's Private*/
-/* ECC key and Bob's Public ECC key                                  */
-/*********************************************************************/
-testN = 'DRVGENSECA';
-pub_EC_POINT = CSFPGAV(handle_EC_Pub_B,CKA_EC_POINT);
-rule_array                = 'EC-DH   ';
-attribute_list            = DVK_attr_list_ECDH;
-base_key_handle           = handle_EC_Priv_A;
-DVK_ParmsList                =,
-       CKD_IBM_HYBRID_NULL          ||, /* KDF function code      */
-       '00000000'X                  ||, /* Optional data length   */
-       '0000000000000000'X          ||, /* Optional data address  */
-       D2C(LENGTH(pub_EC_POINT),4)  ||, /* Public value length    */
-       pub_EC_POINT;                    /* Public value           */
-CALL CSFPDVK;
-handle_GenSec_A = target_key_handle;
+say 'PKD_target_Keyvalue' c2x(PKD_target_Keyvalue) 
+
+exit
+
+/* ---------------------------------------------------------------- */
+/* PKA Encrypt                                                      */
+/*                                                                  */
+/* Generates and encrypts a random 32-byte value                    */
+/*                                                                  */
+/* See the ICSF Application Programmer's Guide for more details.    */
+/* ---------------------------------------------------------------- */
+CSNDPKE:
+
+PKE_rc = 'FFFFFFFF'x
+PKE_rs = 'FFFFFFFF'x
+exit_data_length = '00000000'x
+exit_data = ''
+PKE_rule_array_count = d2c(length(PKE_rule_array)/8,4)
+PKE_keyvalue_length      = d2c(length(PKE_keyvalue),4)
+PKE_sym_key_identifier_length = d2c(length(PKE_sym_key_identifier),4)
+PKE_public_key_identifier_length = d2c(length(PKE_public_key_identifier),4)
+PKE_EncKeyvalue_length = d2c(1568,4)
+PKE_EncKeyvalue = d2c(0,1568)
+
+ADDRESS LINKPGM 'CSNDPKE' ,
+                'PKE_rc' ,
+                'PKE_rs' ,
+                'exit_data_length' ,
+                'exit_data' ,
+                'PKE_rule_array_count' ,
+                'PKE_rule_array' ,
+                'PKE_keyvalue_length' ,
+                'PKE_keyvalue' ,
+                'PKE_sym_key_identifier_length' ,
+                'PKE_sym_key_identifier' ,
+                'PKE_public_key_identifier_length' ,
+                'PKE_public_key_identifier' ,
+                'PKE_EncKeyvalue_length' ,
+                'PKE_EncKeyvalue' ;
+
+ IF PKE_rc /= Exp_rc | PKE_rs /= Exp_rs THEN
+  SAY 'PKE FAILED rc=' c2x(PKE_rc) 'rs =' c2x(PKE_rs) ;
+ELSE
+ DO
+  PKE_EncKeyvalue = ,
+     substr(PKE_EncKeyvalue,1,c2d(PKE_EncKeyvalue_length))
+  PKE_keyvalue =,
+     substr(PKE_keyvalue,1,c2d(PKE_keyvalue_length))
+  SAY 'PKE successful'
+ END
+SAY
+RETURN
+
+/* ---------------------------------------------------------------- */
+/* PKA Decrypt                                                      */
+/*                                                                  */
+/* Decrypts the 32-byte value                                       */  
+/*                                                                  */
+/* See the ICSF Application Programmer's Guide for more details.    */
+/* ---------------------------------------------------------------- */
+
+CSNDPKD:
+
+ PKD_rc                     = 'FFFFFFFF'x ;
+ PKD_rs                     = 'FFFFFFFF'x ;
+ PKD_Exit_length            = '00000000'x ;
+ PKD_Exit_Data              = '' ;
+ PKD_Rule_Count             =  d2c(length(PKD_Rule_Array)/8,4)
+ PKD_sym_key_id_length      = d2c(length(PKD_sym_key_identifier),4)
+ PKD_KeyIdentifier_length   = d2c(length(PKD_KeyIdentifier),4)
+ PKD_target_Keyvalue        = copies('00'x,256) ;
+ PKD_target_Keyvalue_length = d2c(length(PKD_target_Keyvalue),4)
+
+  address linkpgm 'CSNDPKD'                                ,
+                 'PKD_rc'                     'PKD_rs'          ,
+                 'PKD_Exit_length'            'PKD_Exit_Data'      ,
+                 'PKD_Rule_Count'             'PKD_Rule_Array'     ,
+                 'PKD_EncKeyValue_length'     'PKD_EncKeyValue'  ,
+                 'PKD_sym_key_id_length'      'PKD_sym_key_identifier' ,
+                 'PKD_KeyIdentifier_length'   'PKD_KeyIdentifier'   ,
+                 'PKD_target_Keyvalue_length' 'PKD_target_Keyvalue' ;
+
+    PKD_target_keyvalue = ,
+     substr(PKD_target_keyvalue,1,c2d(PKD_target_keyvalue_length)) ;
 
 
-/*********************************************************************/
-/* Step 3.4 Derive key using KYBER(HYBRID_SHA256), then encapsulate  */
-/* Bob's Public Kyber key                                            */
-/*********************************************************************/
-testN = 'DRVSHAREDA';
-rule_array                = 'KYBER   ';
-attribute_list            = DVK_attr_list_Kyber;
-base_key_handle           = handle_Kyb_Pub_B;
+  If PKD_rc = Exp_Rc & PKD_rs = Exp_Rc then
+   Do;
+    say "PKD successful"
+    if PKE_Keyvalue /= PKD_target_Keyvalue then
+     do
+      say '***** Error PKE_keyvalue <> PKD_target_keyvalue *****'
+      say ' PKE_keyvalue         : ' PKE_Keyvalue
+      say ' PKD_target_Keyvalue  : ' PKD_target_Keyvalue
+     end;
+   end;
+  Else 
+    say 'PKD : failed rc =' c2x(PKD_rc) 'rs =' c2x(PKD_rs)
 
-DVK_ParmsList                =,
-       '00000000'X                  ||, /* version                   */
-       CK_IBM_KEM_ENCAPSULATE       ||, /* mode                      */
-       CKD_IBM_HYBRID_SHA256_KDF    ||, /* kdf                       */
-       CK_FALSE                     ||, /* prepend                   */
-       COPIES('00'X,3)              ||, /* reserved                  */
-       D2C(0,4)                     ||, /* shared data len           */
-       D2C(1600,4)                  ||, /* cipher len (output)       */
-       handle_GenSec_A              ||, /* gen secret key handle     */
-       COPIES('42'X,1600);              /* buffer for cipher output  */
-
-CALL CSFPDVK;
-CALL parse_Kyber_parmslist;
-handle_SharedKey_A = target_key_handle;
-
-
-
-/*********************************************************************/
-/* Step 4.1 Derive key using KYBER(HYBRID_SHA256) using decapsulate  */
-/* with Bob's Private Kyber key                                      */
-/*********************************************************************/
-testN = 'DRVSHAREDB';
-rule_array                = 'KYBER   ';
-attribute_list            = DVK_attr_list_Kyber;
-base_key_handle           = handle_Kyb_Priv_B;
-DVK_ParmsList                =,
-       '00000000'X                  ||, /* version                   */
-       CK_IBM_KEM_DECAPSULATE       ||, /* mode                      */
-       CKD_IBM_HYBRID_SHA256_KDF    ||, /* kdf                       */
-       CK_FALSE                     ||, /* prepend                   */
-       COPIES('00'X,3)              ||, /* reserved                  */
-       D2C(0,4)                     ||, /* shared data len           */
-       d2c( length(cphr),4  )       ||, /* cipher len (input)        */
-       handle_GenSec_B              ||, /* gen secret key handle     */
-       cphr                         ;   /* cipher from previous step */
-CALL CSFPDVK;
-handle_SharedKey_B = target_key_handle;
-
-
-/*********************************************************************/
-/* Encrypt some data with Alice's SharedKey                          */
-/*********************************************************************/
-testN = 'ENCSHAREDA';
-rule_array                = 'AES     ECB     ONLY    ';
-key_handle                = handle_SharedKey_A
-init_vector               = '';
-clear_text                = known_clear_text;
-CALL CSFPSKE;
-SAY 'ciphertext('||testN||'): '||C2X(cipher_text);
-cipher_text_SharedKey_A = cipher_text;
-
-/*********************************************************************/
-/* Encrypt some data with Bob's SharedKey                            */
-/*********************************************************************/
- testN = 'ENCSHAREDB';
-rule_array                = 'AES     ECB     ONLY    ';
-key_handle                = handle_SharedKey_B;
-init_vector               = '';
-clear_text                = known_clear_text;
-CALL CSFPSKE;
-SAY 'ciphertext('||testN||'): '||C2X(cipher_text);
-cipher_text_SharedKey_B = cipher_text;
-
-/*********************************************************************/
-/* Verify cipher text is identical                                   */
-/*********************************************************************/
-IF cipher_text_SharedKey_B = cipher_text_SharedKey_A THEN
-  SAY 'TESTCASE SUCCESSFUL'
-
-
-GETOUT: ;
-EXIT;
-/*********************************************************************/
-/* parse_Kyber_parmslist                                             */
-/*********************************************************************/
-parse_Kyber_parmslist:
-    PARSE VALUE DVK_ParmsList WITH ,
-              ver              +4  ,
-              mode             +4  ,
-              kdf              +4  ,
-              pre              +1  ,
-              rsvd             +3  ,
-              shrdlen          +4  ,
-              cphrlen          +4  ,
-              gskH             +44 ,
-              remaining            ;
-    shrdlenD = C2D(shrdlen);
-    cphrlenD = C2D(cphrlen);
-    PARSE VALUE remaining WITH ,
-              shrd             +(shrdlenD) ,
-              cphr             +(cphrlenD) ,
-              extra                        ;
-    verP     = "'"||C2X(ver)||"'X (version "||C2D(ver)||")";
-    modeP    = "'"||C2X(mode)||"'X";
-    SELECT;
-      WHEN mode = CK_IBM_KEM_ENCAPSULATE THEN
-        modeP = modeP||" (CK_IBM_KEM_ENCAPSULATE)";
-      WHEN mode = CK_IBM_KEM_DECAPSULATE THEN
-        modeP = modeP||" (CK_IBM_KEM_DECAPSULATE)";
-      OTHERWISE
-        modeP = modeP||" (unknown)";
-    END;
-    kdfP     = "'"||C2X(kdf)||"'X";
-    SELECT;
-      WHEN kdf = CKD_IBM_HYBRID_SHA1_KDF THEN
-        kdfP = kdfP||" (CKD_IBM_HYBRID_SHA1_KDF)";
-      WHEN kdf = CKD_IBM_HYBRID_SHA224_KDF THEN
-        kdfP = kdfP||" (CKD_IBM_HYBRID_SHA224_KDF)";
-      WHEN kdf = CKD_IBM_HYBRID_SHA256_KDF THEN
-        kdfP = kdfP||" (CKD_IBM_HYBRID_SHA256_KDF)";
-      WHEN kdf = CKD_IBM_HYBRID_SHA384_KDF THEN
-        kdfP = kdfP||" (CKD_IBM_HYBRID_SHA384_KDF)";
-      WHEN kdf = CKD_IBM_HYBRID_SHA512_KDF THEN
-        kdfP = kdfP||" (CKD_IBM_HYBRID_SHA512_KDF)";
-      OTHERWISE
-        kdfP = kdfP||" (unknown)";
-    END;
-    preP     = "'"||C2X(pre)||"'X";
-    SELECT;
-      WHEN pre = CK_FALSE THEN
-        preP = preP||"       (don't prepend)";
-      WHEN pre = CK_TRUE THEN
-        preP = preP||"       (do prepend)";
-      OTHERWISE
-        preP = preP||"       (unknown)";
-    END;
-    rsvdP    = "'"||C2X(rsvd)||"'X";
-    shrdlenP = "'"||C2X(shrdlen)||"'X ("||shrdlenD||")";
-    cphrlenP = "'"||C2X(cphrlen)||"'X ("||cphrlenD||")";
-    gskHP    = "'"||gskH||"'";
-
-RETURN;
-
-/* --------------------------------------------------------------- */
-/* PKCS #11 Generate Key Pair                                      */
-/*                                                                 */
-/* Use the PKCS #11 Generate Key Pair callable service to generate */
-/* an RSA, DSA, Elliptic Curve, Diffie-Hellman, Dilithium (LI2) or */
-/* Kyber key pair.                                                 */
-/*                                                                 */
-/* See the ICSF Application Programmer's Guide for more details.   */
-/* --------------------------------------------------------------- */
-CSFPGKP:
-return_code               = 'FFFFFFFF'X;
-reason_code               = 'FFFFFFFF'X;
-token_handle              = my_token;
-rule_array_count          = '00000000'X;
-rule_array                = '';
-/* pub_key_attr_list is set by caller */
-pub_key_attr_list_length  = D2C(LENGTH(pub_key_attr_list),4);
-pub_key_object_handle     = COPIES(' ',44);
-/* prv_key_attr_list is set by caller */
-prv_key_attr_list_length  = D2C(LENGTH(prv_key_attr_list),4);
-prv_key_object_handle     = COPIES(' ',44);
-ADDRESS LINKPGM 'CSFPGKP',
-                'return_code'               'reason_code'        ,
-                'exit_data_length'          'exit_data'          ,
-                'token_handle'                                   ,
-                'rule_array_count'          'rule_array'         ,
-                'pub_key_attr_list_length'  'pub_key_attr_list'  ,
-                'pub_key_object_handle'                          ,
-                'prv_key_attr_list_length'  'prv_key_attr_list'  ,
-                'prv_key_object_handle'                         ;
-IF (return_code \= ExpRC) | (reason_code \= ExpRS) THEN
-  DO;
-    SAY 'GKP('||testN||'): rc/rs='||C2X(return_code)||'/'||,
-                                    C2X(reason_code);
-    SIGNAL GETOUT;
-  END;
-Else
-  DO;
-    SAY 'GKP('||testN||'): successful';
-    SAY '  pub_key_object_handle = "'||pub_key_object_handle||'"';
-    SAY '  prv_key_object_handle = "'||prv_key_object_handle||'"';
-  END;
-
-RETURN;
-
-/* --------------------------------------------------------------- */
-/* PKCS #11 Derive Key                                             */
-/*                                                                 */
-/* Use the PKCS #11 Derive Key callable service to generate a new  */
-/* secret key object from an existing key object.                  */
-/*                                                                 */
-/* See the ICSF Application Programmer's Guide for more details.   */
-/* --------------------------------------------------------------- */
-CSFPDVK:
-return_code               = 'FFFFFFFF'X;
-reason_code               = 'FFFFFFFF'X;
-rule_array_count          = D2C(TRUNC((LENGTH(rule_array)+7)/8),4);
-/* rule_array (properly padded) is set by caller */
-/* attribute_list is set by caller */
-attribute_list_length     = D2C(LENGTH(attribute_list),4);
-/* base_key_handle is set by caller */
-/* DVK_ParmsList is set by caller */
-DVK_ParmsList_length         = D2C(LENGTH(DVK_ParmsList),4);
-target_key_handle         = COPIES('DD'X,44);
-ADDRESS LINKPGM 'CSFPDVK',
-                'return_code'               'reason_code'        ,
-                'exit_data_length'          'exit_data'          ,
-                'rule_array_count'          'rule_array'         ,
-                'attribute_list_length'     'attribute_list'     ,
-                'base_key_handle'                                ,
-                'DVK_ParmsList_length'         'DVK_ParmsList'         ,
-                'target_key_handle'                              ;
-IF (return_code \= ExpRC) | (reason_code \= ExpRS) THEN
-  DO;
-    SAY 'DVK('||testN||'): rc/rs='||C2X(return_code)||'/'||,
-                                    C2X(reason_code);
-    SIGNAL GETOUT;
-  END;
-Else
-  DO;
-    SAY 'DVK('||testN||'): successful';
-    SAY '  target_key_handle = "'||target_key_handle||'"';
-  END;
-RETURN;
-
-
-/* --------------------------------------------------------------- */
-/* PKCS #11 Secret Key Encrypt                                     */
-/*                                                                 */
-/* Use the PKCS #11 Secret Key Encrypt callable service to encipher*/
-/* data using a symmetric key.                                     */
-/*                                                                 */
-/* See the ICSF Application Programmer's Guide for more details.   */
-/* --------------------------------------------------------------- */
-CSFPSKE:
-return_code               = '99999999'X;
-reason_code               = '99999999'X;
-rule_array_count          = D2C(TRUNC((LENGTH(rule_array)+7)/8),4);
-/* rule_array (properly padded) is set by caller */
-/* key_handle is set by caller */
-init_vector_length        = D2C(LENGTH(init_vector),4);
-/* init_vector is set by caller */
-chain_data_length         = '00000080'X
-chain_data                = COPIES('00'X,C2D(chain_data_length));
-clear_text_length         = D2C(LENGTH(clear_text),4);
-/* clear_text is set by caller */
-clear_text_id             = '00000000'X;
-cipher_text_length        = D2C(C2D(clear_text_length)+16,4);
-cipher_text               = COPIES('00'X,C2D(cipher_text_length));
-cipher_text_id            = '00000000'X;
-ADDRESS LINKPGM 'CSFPSKE'                               ,
-                'return_code'          'reason_code'    ,
-                'exit_data_length'     'exit_data'      ,
-                'rule_array_count'     'rule_array'     ,
-                'key_handle'                            ,
-                'init_vector_length'   'init_vector'    ,
-                'chain_data_length'    'chain_data'     ,
-                'clear_text_length'    'clear_text'     ,
-                'clear_text_id'                         ,
-                'cipher_text_length'   'cipher_text'    ,
-                'cipher_text_id'                        ;
-IF (return_code \= ExpRC) | (reason_code \= ExpRS) THEN
-  DO;
-    SAY 'SKE('||testN||'): rc/rs='||C2X(return_code)||'/'||,
-                                    C2X(reason_code);
-    SIGNAL GETOUT;
-  END;
-Else
-  SAY 'SKE('||testN||'): successful';
-cipher_text = LEFT(cipher_text,C2D(cipher_text_length));
-RETURN;
-
-/* --------------------------------------------------------------- */
-/* PKCS #11 Get Attribute Value                                    */
-/*                                                                 */
-/* Use the PKCS #11 Get Attribute Value callable service (CSFPGAV) */
-/* to retrieve the attributes of an object.                        */
-/*                                                                 */
-/* See the ICSF Application Programmer's Guide for more details.   */
-/* --------------------------------------------------------------- */
-CSFPGAV:
-PARSE ARG RATTR.handle,RATTR.attr;
-shortHandle = LEFT(RATTR.handle,41);
-return_code      = 'FFFFFFFF'X;
-reason_code      = 'FFFFFFFF'X;
-rule_array_count = '00000000'X;
-handle           = RATTR.handle;
-rule_array       = '';
-attr_list_length = D2C(32000,4);
-attr_list        = COPIES('FF'X,32000);
-ADDRESS LINKPGM 'CSFPGAV' ,
-                'return_code'      'reason_code'   ,
-                'exit_data_length' 'exit_data'     ,
-                'handle'                           ,
-                'rule_array_count' 'rule_array'    ,
-                'attr_list_length' 'attr_list'     ;
-IF (return_code \= ExpRC) | (reason_code \= ExpRS) THEN
-  DO;
-    SAY 'CSFPGAV('||shortHandle||'): rc = '||C2X(return_code)||,
-                 ' rs = '||C2X(reason_code);
-    SIGNAL GETOUT;
-  END;
-attr_list = LEFT(attr_list,C2D(attr_list_length));
-number_attributes = C2D(LEFT(attr_list,2));
-attr_list = SUBSTR(attr_list,3);
-DO n = 1 TO number_attributes;
-  attr_number  = LEFT(attr_list,4);
-  attr_list    = SUBSTR(attr_list,5);
-  attr_val_len = C2D(LEFT(attr_list,2));
-  attr_list    = SUBSTR(attr_list,3);
-  attr_value   = LEFT(attr_list,attr_val_len);
-  attr_list    = SUBSTR(attr_list,attr_val_len+1);
-  IF (attr_number = RATTR.attr) THEN
-    SIGNAL DONE_W_READ_ATTR;
-END;
-attr_value = 'BADBADBAD';
-DONE_W_READ_ATTR: ;
-RETURN attr_value;
-
-TCSETUP:
-
-DER_OID_KYBER_1024_R2 = '060B2B0601040102820B050404'X;
-secp521r1             = '06052b81040023'x
-
-CKK_IBM_KYBER         = '80010024'X;
-CKK_EC                = '00000003'X
-CKK_GENERIC_SECRET    = '00000010'X
-CKK_AES               = '0000001F'X
-
-CKO_PUBLIC_KEY        = '00000002'X
-CKO_PRIVATE_KEY       = '00000003'X
-CKO_SECRET_KEY        = '00000004'X
-
-CKA_CLASS             = '00000000'X
-CKA_TOKEN             = '00000001'X
-CKA_IBM_KYBER_MODE    = '8000000E'X
-CKA_LABEL             = '00000003'X
-CKA_IBM_SECURE        = '80000006'X
-CKA_EC_PARAMS         = '00000180'X
-CKA_EC_POINT          = '00000181'X
-CKA_VALUE_LEN         = '00000161'X
-CKA_KEY_TYPE          = '00000100'X
-
-CKD_IBM_HYBRID_NULL        = '80000001'X;
-CKD_IBM_HYBRID_SHA1_KDF    = '80000002'X;
-CKD_IBM_HYBRID_SHA224_KDF  = '80000003'X;
-CKD_IBM_HYBRID_SHA256_KDF  = '80000004'X;
-CKD_IBM_HYBRID_SHA384_KDF  = '80000005'X;
-CKD_IBM_HYBRID_SHA512_KDF  = '80000006'X;
-
-CK_IBM_KEM_ENCAPSULATE    = '00000001'X;
-CK_IBM_KEM_DECAPSULATE    = '00000002'X;
-
-CK_TRUE                   = '01'x
-CK_FALSE                  = '00'x
+say
 return
-
-NOVALUE:
-SAY "Condition NOVALUE was raised."
-SAY CONDITION("D") "variable was not initialized."
-SAY sigl||': '||SOURCELINE(sigl)
-EXIT; 
