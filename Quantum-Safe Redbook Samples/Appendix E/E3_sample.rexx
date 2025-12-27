@@ -32,19 +32,19 @@ GKP_EC_prv_attr_list =,
     CKA_TOKEN              || '0001'X || CK_TRUE                   ||,
     CKA_IBM_SECURE         || '0001'X || CK_TRUE                   ||,
     CKA_LABEL            /*|| 'llll'X || 'label'                  */ ;
-GKP_Kyber_pub_attr_list =,
+GKP_MLKEM_pub_attr_list =,
     '0006'X ||,
     CKA_CLASS              || '0004'X || CKO_PUBLIC_KEY            ||,
-    CKA_KEY_TYPE           || '0004'X || CKK_IBM_KYBER             ||,
+    CKA_KEY_TYPE           || '0004'X || CKK_IBM_ML_KEM            ||,
     CKA_TOKEN              || '0001'X || CK_TRUE                   ||,
     CKA_IBM_SECURE         || '0001'X || CK_TRUE                   ||,
-    CKA_IBM_KYBER_MODE     || D2C(LENGTH(DER_OID_KYBER_1024_R2),2) ||,
-                                         DER_OID_KYBER_1024_R2     ||,
+    CKA_IBM_PARAMETER_SET  || D2C(LENGTH(CKP_IBM_ML_KEM_512),2)    ||,
+                                         CKP_IBM_ML_KEM_512        ||,
     CKA_LABEL            /*|| 'llll'X || 'label'                  */ ;
-GKP_Kyber_prv_attr_list =,
+GKP_MLKEM_prv_attr_list =,
     '0005'X ||,
     CKA_CLASS              || '0004'X || CKO_PRIVATE_KEY           ||,
-    CKA_KEY_TYPE           || '0004'X || CKK_IBM_KYBER             ||,
+    CKA_KEY_TYPE           || '0004'X || CKK_IBM_ML_KEM             ||,
     CKA_TOKEN              || '0001'X || CK_TRUE                   ||,
     CKA_IBM_SECURE         || '0001'X || CK_TRUE                   ||,
     CKA_LABEL            /*|| 'llll'X || 'label'                  */ ;
@@ -54,7 +54,7 @@ DVK_attr_list_ECDH =,
     CKA_IBM_SECURE         || '0001'X || CK_TRUE                   ||,
     CKA_KEY_TYPE           || '0004'X || CKK_GENERIC_SECRET        ||,
     CKA_VALUE_LEN          || '0004'X || '00000042'X               ;
-DVK_attr_list_Kyber =,
+DVK_attr_list_MLKEM =,
     '0004'X ||,
     CKA_CLASS              || '0004'X || CKO_SECRET_KEY            ||,
     CKA_IBM_SECURE         || '0001'X || CK_TRUE                   ||,
@@ -86,14 +86,14 @@ handle_EC_Pub_B  = pub_key_object_handle;
 handle_EC_Priv_B = prv_key_object_handle;
 
 /*********************************************************************/
-/* Step 2.2 Generate a Kyber key pair for Bob                        */
+/* Step 2.2 Generate a ML-KEM key pair for Bob                       */
 /*********************************************************************/
 testN = 'QSBOB';
-pub_key_attr_list=GKP_Kyber_pub_attr_list||D2C(LENGTH(testN),2)||testN;
-prv_key_attr_list=GKP_Kyber_prv_attr_list||D2C(LENGTH(testN),2)||testN;
+pub_key_attr_list=GKP_MLKEM_pub_attr_list||D2C(LENGTH(testN),2)||testN;
+prv_key_attr_list=GKP_MLKEM_prv_attr_list||D2C(LENGTH(testN),2)||testN;
 CALL CSFPGKP;
-handle_Kyb_Pub_B  = pub_key_object_handle;
-handle_Kyb_Priv_B = prv_key_object_handle;
+handle_KEM_Pub_B  = pub_key_object_handle;
+handle_KEM_Priv_B = prv_key_object_handle; 
 
 
 /*********************************************************************/
@@ -136,12 +136,12 @@ handle_GenSec_A = target_key_handle;
 
 
 /*********************************************************************/
-/* Step 3.4 Derive key using KYBER(HYBRID_SHA256), then encapsulate  */
+/* Step 3.4 Derive key using ML-KEM(HYBRID_SHA256), then encapsulate  */
 /* Bob's Public Kyber key                                            */
 /*********************************************************************/
 testN = 'DRVSHAREDA';
-rule_array                = 'KYBER   ';
-attribute_list            = DVK_attr_list_Kyber;
+rule_array                = 'ML-KEM  ';
+attribute_list            = DVK_attr_list_MLKEM;
 base_key_handle           = handle_Kyb_Pub_B;
 
 DVK_ParmsList                =,
@@ -156,19 +156,19 @@ DVK_ParmsList                =,
        COPIES('42'X,1600);              /* buffer for cipher output  */
 
 CALL CSFPDVK;
-CALL parse_Kyber_parmslist;
+CALL parse_MLKEM_parmslist;
 handle_SharedKey_A = target_key_handle;
 
 
 
 /*********************************************************************/
-/* Step 4.1 Derive key using KYBER(HYBRID_SHA256) using decapsulate  */
-/* with Bob's Private Kyber key                                      */
+/* Step 4.1 Derive key using ML-KEM(HYBRID_SHA256) using decapsulate  */
+/* with Bob's Private ML-KEM key                                      */
 /*********************************************************************/
 testN = 'DRVSHAREDB';
-rule_array                = 'KYBER   ';
-attribute_list            = DVK_attr_list_Kyber;
-base_key_handle           = handle_Kyb_Priv_B;
+rule_array                = 'ML-KEM  ';
+attribute_list            = DVK_attr_list_MLKEM;
+base_key_handle           = handle_KEM_Priv_B;
 DVK_ParmsList                =,
        '00000000'X                  ||, /* version                   */
        CK_IBM_KEM_DECAPSULATE       ||, /* mode                      */
@@ -217,9 +217,9 @@ IF cipher_text_SharedKey_B = cipher_text_SharedKey_A THEN
 GETOUT: ;
 EXIT;
 /*********************************************************************/
-/* parse_Kyber_parmslist                                             */
+/* parse_MLKEM_parmslist                                             */
 /*********************************************************************/
-parse_Kyber_parmslist:
+parse_MLKEM_parmslist:
     PARSE VALUE DVK_ParmsList WITH ,
               ver              +4  ,
               mode             +4  ,
@@ -281,8 +281,8 @@ RETURN;
 /* PKCS #11 Generate Key Pair                                      */
 /*                                                                 */
 /* Use the PKCS #11 Generate Key Pair callable service to generate */
-/* an RSA, DSA, Elliptic Curve, Diffie-Hellman, Dilithium (LI2) or */
-/* Kyber key pair.                                                 */
+/* an RSA, DSA, Elliptic Curve, Diffie-Hellman, ML-DSA or ML-KEM   */
+/* key pair.                                                       */
 /*                                                                 */
 /* See the ICSF Application Programmer's Guide for more details.   */
 /* --------------------------------------------------------------- */
@@ -458,10 +458,9 @@ RETURN attr_value;
 
 TCSETUP:
 
-DER_OID_KYBER_1024_R2 = '060B2B0601040102820B050404'X;
 secp521r1             = '06052b81040023'x
 
-CKK_IBM_KYBER         = '80010024'X;
+CKK_IBM_ML_KEM        = '80010026'X
 CKK_EC                = '00000003'X
 CKK_GENERIC_SECRET    = '00000010'X
 CKK_AES               = '0000001F'X
@@ -472,7 +471,7 @@ CKO_SECRET_KEY        = '00000004'X
 
 CKA_CLASS             = '00000000'X
 CKA_TOKEN             = '00000001'X
-CKA_IBM_KYBER_MODE    = '8000000E'X
+CKA_IBM_PARAMETER_SET = '80010010'X
 CKA_LABEL             = '00000003'X
 CKA_IBM_SECURE        = '80000006'X
 CKA_EC_PARAMS         = '00000180'X
@@ -489,6 +488,10 @@ CKD_IBM_HYBRID_SHA512_KDF  = '80000006'X;
 
 CK_IBM_KEM_ENCAPSULATE    = '00000001'X;
 CK_IBM_KEM_DECAPSULATE    = '00000002'X;
+
+CKP_IBM_ML_KEM_512        = '00000001'X;
+CKP_IBM_ML_KEM_768        = '00000002'X;
+CKP_IBM_ML_KEM_1024       = '00000003'X;
 
 CK_TRUE                   = '01'x
 CK_FALSE                  = '00'x

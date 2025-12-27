@@ -1,7 +1,7 @@
 /* rexx */
 
 /*------------------------------------------------------------------*/
-/* CRYSTALS-Dilithium Digital signature generation and verification */
+/* ML-DSA Digital signature generation and verification             */
 /*------------------------------------------------------------------*/
 
  /* expected results */
@@ -9,10 +9,10 @@
  ExpRS = '00000000'x ;
 
 /*------------------------------------------------------------------*/
-/* Call the CSFPPKS service passing the CRYSTALS-Dilithium private  */
-/* key handle to generate the digital signature.                    */
+/* Call the CSFPPKS service passing the ML-DSA private key handle   */
+/* to generate the digital signature.                               */
 /*------------------------------------------------------------------*/
- PKS_Rule_Array          = 'LI2     '
+ PKS_Rule_Array          = 'ML-DSA  '
  PKS_Key_Handle          = 'QSAFE.TEST.TOKEN                00000003Y'
  PKS_Cipher_Value        = Copies('A',128)
  PKS_Cipher_Value_Length = D2C( Length(PKS_Cipher_Value),4 );
@@ -22,8 +22,8 @@
  Call CSFPPKS
 
 /*------------------------------------------------------------------*/
-/* Call the CSFPPKV service passing the CRYSTALS-Dilithium public   */
-/* key handle to verify the digital signature.                      */
+/* Call the CSFPPKV service passing the ML-DSA public key handle to */
+/* verify the digital signature.                                    */ 
 /*------------------------------------------------------------------*/
  PKV_Key_Handle          = 'QSAFE.TEST.TOKEN                00000002Y'
 
@@ -33,8 +33,8 @@
 /* --------------------------------------------------------------- */
 /* PKCS #11 Private Key Sign                                       */
 /*                                                                 */
-/* Used to sign data using an ECC, RSA, DSA, or CRYSTALS-Dilithium */
-/* private key.                                                    */
+/* Used to sign data using an ECC, RSA, DSA, or ML-DSA private     */
+/* key.                                                            */
 /* --------------------------------------------------------------- */
 CSFPPKS:
 
@@ -71,7 +71,7 @@ return;
 /* PKCS #11 Public Key Verify                                      */
 /*                                                                 */
 /* Used to verify a signature using an ECC, RSA, DSA, or           */
-/* CRYSTALS-Dilithium public key.                                  */
+/* ML-DSA public key.                                              */
 /* --------------------------------------------------------------- */
 CSFPPKV:
 
