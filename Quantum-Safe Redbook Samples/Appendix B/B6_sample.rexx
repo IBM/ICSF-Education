@@ -1,35 +1,35 @@
 /* Rexx */
 
-Call TCSetup
-
 /*-------------------------------------------------------------------*/
-/* Generate a secure PKCS #11 Kyber key pair                         */
+/* Generate a PKCS #11 ML-KEM key pair.                              */
 /*-------------------------------------------------------------------*/
 
 /* expected results */
 ExpRC = '00000000'x ;
 ExpRS = '00000000'x ;
 
+Call TCSETUP
 
 GKP_Handle             = Left('QSAFE.TEST.TOKEN',44)
 
-GKP_PrivKey_Attr_List = '0007'x||,
+GKP_PrivKey_Attr_List = '0004'x||,
        CKA_CLASS      ||'0004'x|| CKO_PRIVATE_KEY          ||,
-       CKA_KEY_TYPE   ||'0004'x|| CKK_IBM_KYBER            ||,
+       CKA_KEY_TYPE   ||'0004'x|| CKK_IBM_ML_KEM           ||,
        CKA_TOKEN      ||'0001'x|| CK_TRUE                  ||,
-       CKA_DERIVE     ||'0001'x|| CK_TRUE                  ||,
-       CKA_DECRYPT    ||'0001'x|| CK_TRUE                  ||,
-       CKA_UNWRAP     ||'0001'x|| CK_TRUE                  ||,
        CKA_IBM_SECURE ||'0001'x|| CK_TRUE
 
-GKP_PubKey_Attr_List = '0007'x||,
+/*-------------------------------------------------------------------*/
+/* Parameter set indicating the ML-KEM strength can be set to the    */
+/* following options:                                                */
+/*     CKP_IBM_ML_KEM_512                                            */
+/*     CKP_IBM_ML_KEM_768                                            */
+/*     CKP_IBM_ML_KEM_1024                                           */
+/*-------------------------------------------------------------------*/
+GKP_PubKey_Attr_List = '0004'x||,
        CKA_CLASS              ||'0004'x|| CKO_PUBLIC_KEY    ||,
-       CKA_KEY_TYPE           ||'0004'x|| CKK_IBM_KYBER     ||,
-       CKA_IBM_KYBER_MODE     ||'000D'x|| DER_OID_KYBER_1024_R2   ||,
+       CKA_KEY_TYPE           ||'0004'x|| CKK_IBM_ML_KEM    ||,
        CKA_TOKEN              ||'0001'x|| CK_TRUE           ||,
-       CKA_WRAP               ||'0001'x|| CK_TRUE           ||,
-       CKA_DERIVE             ||'0001'x|| CK_TRUE           ||,
-       CKA_ENCRYPT            ||'0001'x|| CK_TRUE
+       CKA_IBM_PARAMETER_SET  ||'0004'x|| CKP_IBM_ML_KEM_512
 
 Call CSFPGKP;
 
@@ -37,11 +37,12 @@ Exit
 /* --------------------------------------------------------------- */
 /* PKCS #11 Generate Key Pair                                      */
 /* Use the PKCS #11 Generate Key Pair callable service to generate */
-/* an RSA, DSA, Elliptic Curve, Diffie-Hellman, Dilithium (LI2) or */
-/* Kyber key pair.                                                 */
+/* an RSA, DSA, Elliptic Curve, Diffie-Hellman, ML-DSA or ML-KEM   */
+/* key pair.                                                       */
 /*                                                                 */
 /* See the ICSF Application Programmer's Guide for more details.   */
 /* --------------------------------------------------------------- */
+
 CSFPGKP:
  GKP_RC = 'FFFFFFFF'x
  GKP_RS = 'FFFFFFFF'x
@@ -79,9 +80,10 @@ return;
 /* --------------------------------------------------------------- */
 TCSetup:
 
-DER_OID_KYBER_1024_R2 = '060B2B0601040102820B050404'X;
-
-CKK_IBM_KYBER         = '80010024'X;
+CKK_IBM_ML_KEM        = '80010026'X;
+CKP_IBM_ML_KEM_512    = '00000001'X;
+CKP_IBM_ML_KEM_768    = '00000002'X;
+CKP_IBM_ML_KEM_1024   = '00000003'X;
 
 CKO_PUBLIC_KEY        = '00000002'X
 CKO_PRIVATE_KEY       = '00000003'X
@@ -90,16 +92,10 @@ CKA_IBM_SECURE        = '80000006'X
 CKA_KEY_TYPE          = '00000100'X
 CKA_CLASS             = '00000000'X
 CKA_TOKEN             = '00000001'X
-CKA_IBM_KYBER_MODE    = '8000000E'X;
-CKA_ENCRYPT           = '00000104'X;
-CKA_DECRYPT           = '00000105'X;
-CKA_WRAP              = '00000106'X;
-CKA_UNWRAP            = '00000107'X;
-CKA_DERIVE            = '0000010C'X;
+CKA_IBM_PARAMETER_SET = '80010010'X;
 
 CK_TRUE               = '01'x
 CK_FALSE              = '00'x
+Return;
 
-Return
-
-EXIT; 
+EXIT;
