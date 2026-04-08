@@ -46,7 +46,7 @@ The format of the command is illustrated below:
 
 External key tokens can be received on any ICSF system.  If the key token is an internal key token (see ICSF Application Programmers Guide) then it is encrypted under the ICSF master key of the system.  Transferring the key token requires that the receiving systems use the same ICSF master key.
 
-If ICSF services are RACF protected (CSFSERV) then access will be required by the user for the CSNDKRC, CSNDKRR, and CSNDKRW services for PKDS transfers or CSNBKRC, CSNBKRR and CSNBKRW for CKDS transfers.
+If ICSF services are RACF protected (CSFSERV) then access will be required by the user for the CSFPKRC, CSFPKRR, and CSFPKRW services for PKDS transfers or CSFKRC2, CSFKRR2 and CSFKRW2 for CKDS transfers.
 
 ## Samples
 
